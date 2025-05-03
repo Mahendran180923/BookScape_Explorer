@@ -1,0 +1,8 @@
+streamlit
+psycopg2
+pandas
+requests
+sqlalchemy
+json
+matplotlib
+plotly
