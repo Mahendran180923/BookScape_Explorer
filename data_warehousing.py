@@ -1,16 +1,13 @@
-import requests
-import pandas as pd
-from pandas import json_normalize
-from sqlalchemy import create_engine
-import streamlit as st
-import json
-
-
+import requests 
+import pandas as pd 
+from pandas import json_normalize 
+from sqlalchemy import create_engine 
+import streamlit as st 
+import json 
 
 # Load secrets from secrets.json
 with open('.vscode/secrets.json') as f:
     secrets = json.load(f)
-
 
 # Database connection settings
 host = 'localhost'
@@ -22,113 +19,114 @@ database = 'mdte16db'
 engine = create_engine(f"postgresql://{user}:{password}@{host}/{database}")
 
 
-starting_index = 0
-topic = ""
-balance_books = 0
-books_data = {}
+def process_data(df):
+    df['volumeInfo.categories'] = df['volumeInfo.categories'].apply(lambda x: x if isinstance(x, list) else [x] if x else [])
+    df['volumeInfo.authors'] = df['volumeInfo.authors'].apply(lambda x: x if isinstance(x, list) else [x] if x else ['Unknown Author'])
+    books_data = pd.DataFrame({
+        "book_id": df["id"],
+        "search_key": df.get("searchInfo.textSnippet", pd.Series(index=df.index)),
+        "book_title": df["volumeInfo.title"].fillna('Unknown Title'),
+        "subtitle": df.get("volumeInfo.subtitle", pd.Series(index=df.index)),
+        "book_authors": df["volumeInfo.authors"],
+        "book_description": df.get("volumeInfo.description", pd.Series(index=df.index)),
+        "industry_identifiers": df.get('volumeInfo.industryIdentifiers', pd.Series(index=df.index)).apply(lambda x: x[0]['type'] if isinstance(x, list) and x else None),
+        "text_reading_modes": df.get('volumeInfo.readingModes.text', pd.Series(index=df.index)),
+        "image_reading_modes": df.get('volumeInfo.readingModes.image', pd.Series(index=df.index)),
+        "page_count": df.get("volumeInfo.pageCount", pd.Series(index=df.index)).fillna(0),
+        "categories": df["volumeInfo.categories"],
+        "language": df.get("volumeInfo.language", pd.Series(index=df.index)),
+        "image_links": df.get("volumeInfo.imageLinks.smallThumbnail", pd.Series(index=df.index)),
+        "ratings_count": df.get("volumeInfo.ratingsCount", pd.Series(index=df.index)).fillna(0),
+        "average_rating": df.get("volumeInfo.averageRating", pd.Series(index=df.index)).fillna(0),
+        "country": df.get('accessInfo.country', pd.Series(index=df.index)),
+        "saleability": df.get('saleInfo.saleability', pd.Series(index=df.index)),
+        "is_ebook": df.get('saleInfo.isEbook', pd.Series(index=df.index)),
+        "amount_list_price": df.get('saleInfo.listPrice.amount', pd.Series(index=df.index)).fillna(0),
+        "currency_code_list_price": df.get('saleInfo.listPrice.currencyCode', pd.Series(index=df.index)).fillna(''),
+        "amount_retail_price": df.get('saleInfo.retailPrice.amount', pd.Series(index=df.index)).fillna(0),
+        "currency_code_retail_price": df.get('saleInfo.retailPrice.currencyCode', pd.Series(index=df.index)).fillna(''),
+        "published_year": df.get('volumeInfo.publishedDate', pd.Series(index=df.index)).fillna('0'),
+        "publisher": df.get('volumeInfo.publisher', pd.Series(index=df.index)).fillna('Unknown Publisher'),
+        "buy_link": df.get('saleInfo.buyLink', pd.Series(index=df.index)),
+    })
+    books_data["discount"] = df.get('saleInfo.listPrice.amount', pd.Series(index=df.index)).fillna(0) - df.get('saleInfo.retailPrice.amount', pd.Series(index=df.index)).fillna(0)
+    books_data["discount"] = books_data["discount"].fillna(0)
+    books_data["published_year"] = books_data["published_year"].astype(str).str[:4]
+    return books_data
 
-def get_user_input():
-    topic = st.text_input("Enter the topic to find a book: ", key="topic_1")
-    no_of_books = st.number_input("Enter the number of books you want to find: ", min_value=1, key="no_of_books_1")
-
-    
-    if st.button("Search"):
-        starting_index = 0
-        balance_books = no_of_books
-        
-        while balance_books > 0:
-            fetch_data(topic, starting_index, min(40, balance_books))
-            starting_index += min(40, balance_books)
-            balance_books -= min(40, balance_books)
-        
-        st.success("Books data has been stored.")
-        
-        add_more_books = st.selectbox("Do you want to add more books?", ["Yes", "No"], key="add_more_books_key")
-    
-        if add_more_books == "Yes":
-            new_topic = st.text_input("Enter the new topic to find a book: ", key="topic_2")
-            new_no_of_books = st.number_input("Enter the new number of books you want to find: ", min_value=1, key="no_of_books_2")
-
-            
-            if st.button("Search again"):
-                starting_index = 0
-                balance_books = new_no_of_books
-                
-                while balance_books > 0:
-                    fetch_data(topic, starting_index, min(40, balance_books))
-                    starting_index += min(40, balance_books)
-                    balance_books -= min(40, balance_books)
-                st.success("Books data has been stored.")
+def search_books(topic, no_of_books):
+    books_data = pd.DataFrame()
+    starting_index = 0
+    while no_of_books > 0:
+        API = secrets['GOOGLE_API']
+        link = "https://www.googleapis.com/books/v1/volumes"
+        params = {
+            "key": API,
+            "q": topic,
+            "maxResults": min(40, no_of_books),
+            "startIndex": starting_index
+        }
+        data = requests.get(link, params=params).json()
+        if 'items' in data:
+            new_data = data["items"]
+            df = json_normalize(new_data)
+            df = process_data(df)
+            books_data = pd.concat([books_data, df])
+            starting_index += min(40, no_of_books)
+            no_of_books -= min(40, no_of_books)
         else:
-            st.write("Thank you for using the book finder!")
+            st.write(f"No results found for query '{topic}'")
+            st.write(data)
+            break
+    return books_data
+
+def store_in_db(df):
+    df.to_sql("books_data", engine, if_exists="append", index=False)
+    st.success("The above books are stored in the database.")
 
 
+def fetch_data(query):
+    """Fetches data from the database using a provided SQL query."""
+    with engine.connect() as connection:
+        result = pd.read_sql(query, connection)
+    return result
 
+def main():
+    if 'search_results' not in st.session_state:
+        st.session_state.search_results = None
+    if 'end_search' not in st.session_state:
+        st.session_state.end_search = False
 
-
-def fetch_data(topic, starting_index, num_books):
-    global books_data, engine
-    books_data = {} 
-    API = secrets['GOOGLE_API']
-    link = "http://www.googleapis.com/books/v1/volumes"
-    params = {
-        "key": API,
-        "q": topic,
-        "maxResults": num_books,
-        "startIndex": starting_index
-    }
-
-    data = requests.get(link, params=params).json()
-    
-    if 'items' in data:
-        new_data = data["items"]
-        df = json_normalize(new_data)
-
-        books_data["book_id"] = df["id"]
-        books_data["search_key"] = df["searchInfo.textSnippet"]
-        books_data["book_title"] = df["volumeInfo.title"].fillna('Unknown Title')
-        books_data["subtitle"] = df["volumeInfo.subtitle"]
-        books_data["book_authors"] = df["volumeInfo.authors"].fillna('Unknown Author')
-        # books_data['book_authors'] = books_data['book_authors'].str.replace('"', '').str.replace('{', '').str.replace('}', '')
-        books_data["book_description"] = df["volumeInfo.description"]
-        books_data["industry_identifiers"] = df['volumeInfo.industryIdentifiers'].apply(lambda x: x[0]['type'] if isinstance(x, list) and x else None)
-        books_data["text_reading_modes"] = df['volumeInfo.readingModes.text']
-        books_data["image_reading_modes"] = df['volumeInfo.readingModes.image']
-        books_data["page_count"] = df["volumeInfo.pageCount"].fillna(0)
-        books_data["categories"] = df["volumeInfo.categories"].fillna('Unknown Categories')
-        # books_data['categories'] = books_data['categories'].str.replace('"', '').str.replace('{', '').str.replace('}', '')
-        books_data["language"] = df["volumeInfo.language"]
-        books_data["image_links"] = df["volumeInfo.imageLinks.smallThumbnail"]
-        books_data["ratings_count"] = df["volumeInfo.ratingsCount"].fillna(0)
-        books_data["average_rating"] = df["volumeInfo.averageRating"].fillna(0)
-        books_data["country"] = df['accessInfo.country']
-        books_data["saleability"] = df['saleInfo.saleability']
-        books_data["is_ebook"] = df['saleInfo.isEbook']
-        books_data["amount_list_price"] = df['saleInfo.listPrice.amount'].fillna(0)
-        books_data["currency_code_list_price"] = df['saleInfo.listPrice.currencyCode'].fillna(0)
-        books_data["amount_retail_price"] = df['saleInfo.retailPrice.amount'].fillna(0)
-        books_data["currency_code_retail_price"] = df['saleInfo.retailPrice.currencyCode'].fillna(0)
-        books_data["published_year"] = df['volumeInfo.publishedDate'].fillna(0)
-        books_data["publisher"] = df['volumeInfo.publisher'].fillna('Unknown Publisher')
-        books_data["buy_link"] = df['saleInfo.buyLink']
-        books_data =  pd.DataFrame(books_data)
-        books_data["discount"] = df['saleInfo.listPrice.amount'] - df['saleInfo.retailPrice.amount']
-        books_data["discount"] = books_data["discount"].fillna(0)
-
-        books_data["published_year"] = pd.Series(books_data["published_year"]).str[:4]
-
-
-        # books_data["discount"] = df['saleInfo.listPrice.amount'] - df['saleInfo.retailPrice.amount']
-        # books_data["year"] = pd.Series(books_data["year"]).str[:4]
-
-        books_data =  pd.DataFrame(books_data)
-        print(books_data)
-
-        books_data.to_sql("books_data", engine, if_exists="append", index=True)
+    if st.session_state.end_search:
+        st.write("Thanks for using our BookScape Explorer!")
     else:
-        print("Error: 'items' key not found in API response.")
+        if st.session_state.search_results is None:
+            with st.form("search_form"):
+                topic = st.text_input("Enter the topic to find a book: ")
+                no_of_books = st.number_input("Enter the number of books you want to find: ", min_value=1)
+                submitted = st.form_submit_button("Search")
+            if submitted:
+                if topic:
+                    df = search_books(topic, int(no_of_books))
+                    st.session_state.search_results = df
+                    st.rerun()
+                else:
+                    st.error("Please enter the topic to search")
+        else:
+            st.write(st.session_state.search_results)
+            store_in_db_button = st.button("Store in DB")
+            if store_in_db_button:
+                store_in_db(st.session_state.search_results)
+            search_more_books_button = st.button("Search More Books")
+            if search_more_books_button:
+                st.session_state.search_results = None
+                st.rerun()
+            end_search_button = st.button("End Search")
+            if end_search_button:
+                st.session_state.end_search = True
+                st.rerun()
 
-    
-    
 
-get_user_input()
+
+if __name__ == "__main__":
+    main()
