@@ -4,12 +4,12 @@
 
 ---
 
-## 🔍 Features
-
-- 📖 Search and retrieve books using custom topics and Google Books API.
-- 🗄️ Store structured book metadata in a PostgreSQL data warehouse.
-- 📊 Visualize key data insights such as publication trends, rating distribution, and discounts.
-- 🧮 Interactive UI built with Streamlit for a user-friendly experience.
+## 🚀 **Features**
+- **Book Search**: Search for books based on a topic and retrieve information from the Google Books API.
+- **Database Storage**: Store searched books into a PostgreSQL database for easy retrieval and analysis.
+- **Data Visualization**: Perform complex SQL-based analysis and view results in tables, bar charts, and line charts.
+- **Interactive UI**: Smooth navigation with tabs for "Search Books" and "Available Books Data Analysis".
+- **Login Option**: Choose to log in with credentials or continue without login.
 
 ---
 
@@ -21,7 +21,7 @@
 - **SQLAlchemy** – For database connection and ORM.
 - **Google Books API** – To fetch book data.
 - **Pandas** – For data manipulation.
-- **Plotly & Matplotlib** – For data visualization.
+
 
 ---
 
@@ -82,18 +82,27 @@ To launch the Streamlit app:
 streamlit run app.py
 ```
 
-This will open a browser window where you can start exploring books and visualizations!
+Open your browser and navigate to [http://localhost:8501](http://localhost:8501).
 
 ---
 
 ## 📂 Project Structure
 
 ```
-├── app.py                  # Main Streamlit app with UI
-├── data_visualisation.py   # Visualization functions using Matplotlib and Plotly
-├── data_warehousing.py     # Fetch and store book data in PostgreSQL
-├── requirements.txt        # Python dependencies
-└── .vscode/secrets.json    # API keys and secrets (not to be committed)
+BookScape_Explorer/
+│
+├── app.py                   # Main application logic
+│
+├── data_warehousing.py      # Handles book search and database storage
+│
+├── data_visualisation.py    # SQL queries and visualizations
+│
+├── requirements.txt         # Python dependencies
+│
+├── README.md                # Project documentation
+│
+└── .vscode/
+    └── secrets.json         # API keys (not included in version control)
 ```
 
 ---
@@ -105,6 +114,18 @@ This will open a browser window where you can start exploring books and visualiz
 - ✅ Efficient SQL queries for in-depth book data analysis
 
 ---
+
+
+---
+
+## 🌟 **Future Enhancements**
+- [ ] Add user registration and authentication.
+- [ ] Improve data visualization with interactive charts.
+- [ ] Integrate Elasticsearch for faster book search.
+- [ ] Enable multi-language search capability.
+
+---
+
 
 ## 📎 References
 
