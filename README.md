@@ -7,7 +7,7 @@
 ## 🚀 **Features**
 - **Book Search**: Search for books based on a topic and retrieve information from the Google Books API.
 - **Database Storage**: Store searched books into a PostgreSQL database for easy retrieval and analysis.
-- **Data Visualization**: Perform complex SQL-based analysis and view results in tables, bar charts, and line charts.
+- **Data Visualization**: Perform complex SQL-based analysis and view results in tables.
 - **Interactive UI**: Smooth navigation with tabs for "Search Books" and "Available Books Data Analysis".
 - **Login Option**: Choose to log in with credentials or continue without login.
 
