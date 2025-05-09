@@ -18,7 +18,7 @@
 - **Python**
 - **Streamlit** – For interactive frontend.
 - **PostgreSQL** – As the database backend.
-- **SQLAlchemy** – For database connection and ORM.
+- **SQLAlchemy** – For database connection.
 - **Google Books API** – To fetch book data.
 - **Pandas** – For data manipulation.
 
